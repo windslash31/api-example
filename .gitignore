@@ -3,3 +3,4 @@ node_modules
 .swc/
 .env*
 .DS_Store
+jira/pnpm-lock.yaml
