@@ -179,7 +179,7 @@ export async function updateJiraIssueAfterBBIssueCreated(issueKey: string, byteb
         throw new Error('Issue key is missing');
     }
 
-    const jiraApiUrl = `https://kredivotest-servicedesk.atlassian.net/rest/api/3/issue/${issueKey}`;
+    const jiraApiUrl = `${process.env.NEXT_PUBLIC_JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`;
     const jiraTransitionUrl = `${jiraApiUrl}/transitions`;
     const jiraAuth = Buffer.from(
         `${process.env.NEXT_PUBLIC_JIRA_EMAIL}:${process.env.NEXT_PUBLIC_JIRA_API_TOKEN}`
@@ -274,7 +274,7 @@ export async function updateJiraIssueStatus(issueKey: string, status: string) {
         throw new Error('Issue key is missing');
     }
 
-    const jiraApiUrl = `https://kredivotest-servicedesk.atlassian.net/rest/api/3/issue/${issueKey}/transitions`;
+    const jiraApiUrl = `${process.env.NEXT_PUBLIC_JIRA_BASE_URL}/rest/api/3/issue/${issueKey}/transitions`;
     const jiraAuth = Buffer.from(
         `${process.env.NEXT_PUBLIC_JIRA_EMAIL}:${process.env.NEXT_PUBLIC_JIRA_API_TOKEN}`
     ).toString('base64');
