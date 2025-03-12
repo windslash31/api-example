@@ -54,7 +54,6 @@ async function createSheet(project: string, database: BytebaseDatabase, SQL: str
         database: database.name,
         title: ``,
         content: Buffer.from(SQL).toString('base64'),
-        type: `TYPE_SQL`,
         source: `SOURCE_BYTEBASE_ARTIFACT`,
         visibility: `VISIBILITY_PUBLIC`,
     };
