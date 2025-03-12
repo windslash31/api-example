@@ -51,11 +51,8 @@ export async function generateBBToken() {
 async function createSheet(project: string, database: BytebaseDatabase, SQL: string) {
     const token = await generateBBToken();
     const newSheet = {
-        database: database.name,
         title: ``,
         content: Buffer.from(SQL).toString('base64'),
-        source: `SOURCE_BYTEBASE_ARTIFACT`,
-        visibility: `VISIBILITY_PUBLIC`,
     };
 
     const response = await fetchData(`${process.env.NEXT_PUBLIC_BB_HOST}/v1/${project}/sheets`, token, {
@@ -109,7 +106,6 @@ async function createIssue(project: string, database: BytebaseDatabase, planName
         "title": `[JIRA>${jiraIssueKey}] ${summary}`,
         "description": `Jira Issue Link: [${jiraIssueUrl}](${jiraIssueUrl})\n\n${description}`,
         "type": "DATABASE_CHANGE",
-        "assignee": "",
         "plan": planName
     };
 
@@ -183,7 +179,7 @@ export async function updateJiraIssueAfterBBIssueCreated(issueKey: string, byteb
         throw new Error('Issue key is missing');
     }
 
-    const jiraApiUrl = `https://bytebase.atlassian.net/rest/api/3/issue/${issueKey}`;
+    const jiraApiUrl = `https://kredivotest-servicedesk.atlassian.net/rest/api/3/issue/${issueKey}`;
     const jiraTransitionUrl = `${jiraApiUrl}/transitions`;
     const jiraAuth = Buffer.from(
         `${process.env.NEXT_PUBLIC_JIRA_EMAIL}:${process.env.NEXT_PUBLIC_JIRA_API_TOKEN}`
@@ -202,7 +198,7 @@ export async function updateJiraIssueAfterBBIssueCreated(issueKey: string, byteb
             },
             body: JSON.stringify({
                 fields: {
-                    customfield_10039: bytebaseIssueLink
+                    customfield_10268: bytebaseIssueLink
                 }
             }),
         });
@@ -278,7 +274,7 @@ export async function updateJiraIssueStatus(issueKey: string, status: string) {
         throw new Error('Issue key is missing');
     }
 
-    const jiraApiUrl = `https://bytebase.atlassian.net/rest/api/3/issue/${issueKey}/transitions`;
+    const jiraApiUrl = `https://kredivotest-servicedesk.atlassian.net/rest/api/3/issue/${issueKey}/transitions`;
     const jiraAuth = Buffer.from(
         `${process.env.NEXT_PUBLIC_JIRA_EMAIL}:${process.env.NEXT_PUBLIC_JIRA_API_TOKEN}`
     ).toString('base64');

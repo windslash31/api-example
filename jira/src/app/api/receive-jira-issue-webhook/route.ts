@@ -14,9 +14,9 @@ interface JiraWebhookPayload {
       };
       summary: string;
       description: string;
-      customfield_10038: string; // SQL statement
-      customfield_10040: string; // Database name
-      customfield_10039: string; // Bytebase issue link
+      customfield_10236: string; // SQL statement
+      customfield_10235: string; // Database name
+      customfield_10268: string; // Bytebase issue link
       status: {
         name: string;
       };
@@ -68,10 +68,10 @@ export async function POST(request: Request) {
         const projectKey = body.issue.fields.project.key;
         const summary = body.issue.fields.summary;
         const description = body.issue.fields.description;
-        const sqlStatement = body.issue.fields.customfield_10038;
-        const database = body.issue.fields.customfield_10040;
+        const sqlStatement = body.issue.fields.customfield_10236;
+        const database = body.issue.fields.customfield_10235;
         const status = body.issue.fields.status.name;
-        let bytebaseIssueLink = body.issue.fields.customfield_10039;
+        let bytebaseIssueLink = body.issue.fields.customfield_10268;
 
         const parsedData: ParsedData = {
             issueKey,
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
             console.log("=============allProjectData", allProjectData);
             
             // Find matching Bytebase project
-            const matchingProject = allProjectData.projects.find((project: BytebaseProject) => project.key === projectKey);
+            const matchingProject = allProjectData.projects.find((project: BytebaseProject) => project.title === projectKey);
             if (!matchingProject) {
                 return Response.json({ error: 'No matching Bytebase project found' }, { status: 400 });
             }
