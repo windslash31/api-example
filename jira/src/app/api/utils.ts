@@ -28,7 +28,7 @@ export async function fetchData(url: string, token: string, options: RequestInit
     return response.json();
 }
 
-/* Generate token */ 
+/* Generate token */
 export async function generateBBToken() {
     const res = await fetch(`${process.env.NEXT_PUBLIC_BB_HOST}/v1/auth/login`, {
         method: "POST",
@@ -48,11 +48,20 @@ export async function generateBBToken() {
     return token.token;
 }
 
-async function createSheet(project: string, database: BytebaseDatabase, SQL: string) {
+async function createSheet(project: string, SQL: string) {
     const token = await generateBBToken();
     const newSheet = {
+        name: ``,
         title: ``,
         content: Buffer.from(SQL).toString('base64'),
+        "payload": {
+            "type": "TYPE_UNSPECIFIED",
+            "commands": [{
+                "start": 1,
+                "end": 1
+            }]
+        },
+        engine: `ENGINE_UNSPECIFIED`
     };
 
     const response = await fetchData(`${process.env.NEXT_PUBLIC_BB_HOST}/v1/${project}/sheets`, token, {
@@ -94,9 +103,7 @@ async function createPlan(project: string, database: BytebaseDatabase, sheetName
 
 async function createIssue(project: string, database: BytebaseDatabase, planName: string, summary: string, description: string, jiraIssueKey: string) {
  
-    console.log("=============createIssue before bbtoken");
     const token = await generateBBToken();
-    console.log("=============createIssue after bbtoken");
     const jiraBaseUrl = process.env.NEXT_PUBLIC_JIRA_BASE_URL;
     const jiraIssueUrl = `${jiraBaseUrl}/browse/${jiraIssueKey}`;
     const newIssue = {
@@ -135,7 +142,7 @@ export async function createBBIssueWorkflow(project: string, database: BytebaseD
 
     console.log("=============createIssueWorkflow", project, database, SQL, summary, description);
     try {
-        const sheetData = await createSheet(project, database, SQL);
+        const sheetData = await createSheet(project, SQL);
         console.log("--------- createdSheetData ----------", sheetData);
 
         const planData = await createPlan(project, database, sheetData.name);
@@ -173,7 +180,7 @@ export async function createBBIssueWorkflow(project: string, database: BytebaseD
 }
 
 export async function updateJiraIssueAfterBBIssueCreated(issueKey: string, bytebaseIssueLink: string) {
-    console.log("=============update-jira-issue", issueKey, bytebaseIssueLink);
+    //console.log("=============update-jira-issue", issueKey, bytebaseIssueLink);
 
     if (!issueKey) {
         throw new Error('Issue key is missing');
@@ -184,8 +191,6 @@ export async function updateJiraIssueAfterBBIssueCreated(issueKey: string, byteb
     const jiraAuth = Buffer.from(
         `${process.env.NEXT_PUBLIC_JIRA_EMAIL}:${process.env.NEXT_PUBLIC_JIRA_API_TOKEN}`
     ).toString('base64');
-
-    console.log("=============update-jira-issue jiraApiUrl", jiraApiUrl);
 
     try {
         // First, update the Bytebase issue link
@@ -222,14 +227,11 @@ export async function updateJiraIssueAfterBBIssueCreated(issueKey: string, byteb
         }
 
         const transitions = await transitionsResponse.json();
-        console.log("Available transitions:", transitions);
 
         // Find the "In Progress" transition
         const inProgressTransition = transitions.transitions.find(
             (t: any) => t.name === "In Progress"
         );
-
-        console.log("=============inProgressTransition", inProgressTransition);
 
         if (!inProgressTransition) {
             throw new Error('In Progress transition not found');
@@ -250,11 +252,7 @@ export async function updateJiraIssueAfterBBIssueCreated(issueKey: string, byteb
             }),
         });
 
-        console.log("Transition Response status:", transitionResponse.status);
-        console.log("Transition Response headers:", Object.fromEntries(transitionResponse.headers.entries()));
-
         const transitionResponseText = await transitionResponse.text();
-        console.log("Transition Response body:", transitionResponseText);
 
         if (!transitionResponse.ok) {
             throw new Error(`Failed to transition Jira issue: ${transitionResponse.status} ${transitionResponse.statusText} - ${transitionResponseText}`);
@@ -268,7 +266,7 @@ export async function updateJiraIssueAfterBBIssueCreated(issueKey: string, byteb
 }
 
 export async function updateJiraIssueStatus(issueKey: string, status: string) {
-    console.log(`Updating Jira issue ${issueKey} status to ${status}`);
+    //console.log(`Updating Jira issue ${issueKey} status to ${status}`);
 
     if (!issueKey) {
         throw new Error('Issue key is missing');
@@ -294,7 +292,7 @@ export async function updateJiraIssueStatus(issueKey: string, status: string) {
         }
 
         const transitions = await transitionsResponse.json();
-        console.log("Available transitions:", transitions);
+        //console.log("Available transitions:", transitions);
 
         // Find the transition for the desired status
         const transition = transitions.transitions.find(
