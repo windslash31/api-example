@@ -2,8 +2,8 @@
   "name": "jira-webhook",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
+"scripts": {
+    "dev": "next dev -p 5900",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

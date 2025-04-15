@@ -17,6 +17,7 @@ interface JiraWebhookPayload {
       customfield_10236: string; // SQL statement
       customfield_10235: string; // Database name
       customfield_10268: string; // Bytebase issue link
+      customfield_11258: string; // Custom project field for dynamic Bytebase project mapping
       status: {
         name: string;
       };
@@ -53,10 +54,20 @@ export async function POST(request: Request) {
             return Response.json({ error: 'Not a Database Change issue' }, { status: 400 });
         }
 
-        const projectKey = body.issue.fields.project.key;
-        if (projectKey !== process.env.NEXT_PUBLIC_JIRA_PROJECT_KEY) {
-            return Response.json({ error: 'Not the Configured Jira Project' }, { status: 400 });
+        // Use customfield for project matching instead of static project key
+        const customProjectField = body.issue.fields.customfield_11258; // Use actual customfield ID 11258
+        console.log("customProjectField value:", customProjectField, "type:", typeof customProjectField);
+        if (!customProjectField) {
+            return Response.json({ error: 'Custom project field is missing' }, { status: 400 });
         }
+
+        // Extract the actual value string from the object
+        const customProjectValue = typeof customProjectField === 'object' && (customProjectField as { value?: string }).value ? (customProjectField as { value?: string }).value : String(customProjectField);
+
+        // Example: customProjectValue like 'a', 'b', 'zoo', etc.
+        // Construct dynamic Bytebase project path
+        const dynamicProjectPath = `projects/${customProjectValue}`;
+        console.log("dynamicProjectPath constructed:", dynamicProjectPath);
 
         const issueKey = body.issue.key;
         const summary = body.issue.fields.summary;
@@ -69,7 +80,7 @@ export async function POST(request: Request) {
         const parsedData: ParsedData = {
             issueKey,
             issueType,
-            projectKey,
+            projectKey: dynamicProjectPath,
             summary,
             description,
             sqlStatement,
@@ -84,8 +95,14 @@ export async function POST(request: Request) {
             // Create Bytebase issue
             const token = await generateBBToken();
 
-            // Fetch databases for the matching project
-            const databasesData = await fetchData(`${process.env.NEXT_PUBLIC_BB_HOST}/v1/${process.env.NEXT_PUBLIC_BB_PROJECT_NAME}/databases`, token);
+            // Fetch databases for the matching project dynamically based on customfield
+            const databasesData = await fetchData(`${process.env.NEXT_PUBLIC_BB_HOST}/v1/${dynamicProjectPath}/databases`, token);
+            console.log("Databases data fetched:", databasesData);
+
+            if (!databasesData || !databasesData.databases) {
+                console.error("Databases data or databases property is missing");
+                return Response.json({ error: 'Invalid databases data received from Bytebase' }, { status: 500 });
+            }
             
             // Find matching database
             const matchingDatabase = databasesData.databases.find((db: BytebaseDatabase) => db.name.split('/').pop() === database);
@@ -93,8 +110,8 @@ export async function POST(request: Request) {
                 return Response.json({ error: 'No matching Bytebase database found' }, { status: 400 });
             }
 
-            // Create Bytebase issue
-            const result = await createBBIssueWorkflow(process.env.NEXT_PUBLIC_BB_PROJECT_NAME, matchingDatabase, sqlStatement, summary, description, issueKey);
+            // Create Bytebase issue with dynamic project
+            const result = await createBBIssueWorkflow(dynamicProjectPath, matchingDatabase, sqlStatement, summary, description, issueKey);
             
             if (result.success && result.issueLink) {
                 bytebaseIssueLink = result.issueLink;
