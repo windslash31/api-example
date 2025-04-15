@@ -32,62 +32,85 @@ export async function GET() {
         // Generate BB token
         const token = await generateBBToken();
 
-        // Fetch all projects first
-        const issuesResponse = await fetch(`${process.env.NEXT_PUBLIC_BB_HOST}/v1/${process.env.NEXT_PUBLIC_BB_PROJECT_NAME}/issues`, {
+        // Fetch all projects
+        const projectsResponse = await fetch(`${process.env.NEXT_PUBLIC_BB_HOST}/v1/projects`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
             },
         });
 
-        if (!issuesResponse.ok) {
-            throw new Error(`Failed to fetch Bytebase projects: ${issuesResponse.statusText}`);
+        if (!projectsResponse.ok) {
+            throw new Error(`Failed to fetch Bytebase projects: ${projectsResponse.statusText}`);
         }
 
-        const issuesData = await issuesResponse.json();
-        const issues = issuesData.issues || [];
-        const updatedIssues: ParsedBytebaseData[] = []; 
+        const projectsData = await projectsResponse.json();
+        const projects = projectsData.projects || [];
+        const updatedIssues: ParsedBytebaseData[] = [];
 
-        for (const issue of issues) {
-            const jiraIssueKeyMatch = issue.title.match(/\[JIRA>([^\]]+)\]/);
-            const jiraIssueKey = jiraIssueKeyMatch ? jiraIssueKeyMatch[1] : null;
+        for (const project of projects) {
+            let projectName = project.name;
+            // Remove leading "projects/" if present to avoid duplicated path segment
+            if (projectName.startsWith('projects/')) {
+                projectName = projectName.substring('projects/'.length);
+            }
+            // Fetch issues for each project
+            const issuesResponse = await fetch(`${process.env.NEXT_PUBLIC_BB_HOST}/v1/projects/${projectName}/issues`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
 
-            // Skip if no Jira issue is linked
-            if (!jiraIssueKey) continue;
-
-            // Skip if we've already processed this issue with the same status
-            const lastStatus = processedIssues.get(issue.name);
-            if (lastStatus === issue.status) continue;
-
-            // Update the processed issues map
-            processedIssues.set(issue.name, issue.status);
-
-            let jiraStatus;
-            if (issue.status === "DONE") {
-                jiraStatus = "Done";
-            } else if (issue.status === "OPEN") {
-                jiraStatus = "In Progress";
+            if (!issuesResponse.ok) {
+                console.error(`Failed to fetch issues for project ${projectName}: ${issuesResponse.statusText}`);
+                continue;
             }
 
-            if (jiraStatus) {
-               try {
-                    await updateJiraIssueStatus(jiraIssueKey, jiraStatus);
-                    console.log(`Updated Jira issue ${jiraIssueKey} status to ${jiraStatus}`);
+            const issuesData = await issuesResponse.json();
+            const issues = issuesData.issues || [];
 
-                    const parsedData: ParsedBytebaseData = {
-                        issueName: issue.name,
-                        issueTitle: issue.title,
-                        issueStatus: issue.status,
-                        issueType: issue.type,
-                        issueDescription: issue.description,
-                        projectName: `${process.env.NEXT_PUBLIC_BB_PROJECT_NAME}`,
-                        bytebaseIssueLink: `${process.env.NEXT_PUBLIC_BB_HOST}/${issue.name}`,
-                        jiraIssueKey,
-                    };
+            for (const issue of issues) {
+                const jiraIssueKeyMatch = issue.title.match(/\[JIRA>([^\]]+)\]/);
+                const jiraIssueKey = jiraIssueKeyMatch ? jiraIssueKeyMatch[1] : null;
 
-                    updatedIssues.push(parsedData);
-                } catch (error) {
-                    console.error(`Failed to update Jira issue ${jiraIssueKey} status:`, error);
+                // Skip if no Jira issue is linked
+                if (!jiraIssueKey) continue;
+
+                // Skip if we've already processed this issue with the same status
+                const lastStatus = processedIssues.get(issue.name);
+                if (lastStatus === issue.status) continue;
+
+                // Update the processed issues map
+                processedIssues.set(issue.name, issue.status);
+
+                let jiraStatus;
+                if (issue.status === "DONE") {
+                    jiraStatus = "Done";
+                } else if (issue.status === "OPEN") {
+                    jiraStatus = "In Progress";
+                }
+
+                if (jiraStatus) {
+                    try {
+                        await updateJiraIssueStatus(jiraIssueKey, jiraStatus);
+                        console.log(`Updated Jira issue ${jiraIssueKey} status to ${jiraStatus}`);
+
+                        const parsedData: ParsedBytebaseData = {
+                            issueName: issue.name,
+                            issueTitle: issue.title,
+                            issueStatus: issue.status,
+                            issueType: issue.type,
+                            issueDescription: issue.description,
+                            projectName: projectName,
+                            bytebaseIssueLink: `${process.env.NEXT_PUBLIC_BB_HOST}/${issue.name}`,
+                            jiraIssueKey,
+                        };
+
+                        updatedIssues.push(parsedData);
+                    } catch (error) {
+                        console.error(`Failed to update Jira issue ${jiraIssueKey} status:`, error);
+                    }
                 }
             }
         }
@@ -97,4 +120,4 @@ export async function GET() {
         console.error('Error processing webhook:', error);
         return Response.json({ error: 'Error processing webhook' }, { status: 500 });
     }
-} 
+}
