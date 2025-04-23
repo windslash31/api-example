@@ -15,9 +15,10 @@ interface JiraWebhookPayload {
       summary: string;
       description: string;
       customfield_10236: string; // SQL statement
-      customfield_10235: string; // Database name
+      customfield_11292: string; // Database name
       customfield_10268: string; // Bytebase issue link
       customfield_11258: string; // Custom project field for dynamic Bytebase project mapping
+      customfield_11324?: string; // Rollout time (updated field)
       status: {
         name: string;
       };
@@ -61,8 +62,8 @@ export async function POST(request: Request) {
             return Response.json({ error: 'Custom project field is missing' }, { status: 400 });
         }
 
-        // Extract the actual value string from the object
-        const customProjectValue = typeof customProjectField === 'object' && (customProjectField as { value?: string }).value ? (customProjectField as { value?: string }).value : String(customProjectField);
+        // Extract the actual value string from the object, handling nested object with value property
+        const customProjectValue = typeof customProjectField === 'object' && customProjectField !== null && 'value' in customProjectField ? (customProjectField as { value: string }).value : String(customProjectField);
 
         // Example: customProjectValue like 'a', 'b', 'zoo', etc.
         // Construct dynamic Bytebase project path
@@ -73,9 +74,27 @@ export async function POST(request: Request) {
         const summary = body.issue.fields.summary;
         const description = body.issue.fields.description;
         const sqlStatement = body.issue.fields.customfield_10236;
-        const database = body.issue.fields.customfield_10235;
+        // Extract the actual database string from the nested object if needed
+        const rawDatabaseField = body.issue.fields.customfield_11292;
+        const database = typeof rawDatabaseField === 'object' && rawDatabaseField !== null && 'value' in rawDatabaseField ? (rawDatabaseField as { value: string }).value : String(rawDatabaseField);
         const status = body.issue.fields.status.name;
         let bytebaseIssueLink = body.issue.fields.customfield_10268;
+
+        // Extract rollout time from customfield_11324 (updated field)
+        const rawRolloutTimeField = body.issue.fields.customfield_11324;
+        let rolloutTime = "";
+
+        if (rawRolloutTimeField && typeof rawRolloutTimeField === 'object' && 'value' in rawRolloutTimeField) {
+            rolloutTime = (rawRolloutTimeField as { value: string }).value;
+        } else if (typeof rawRolloutTimeField === 'string' && rawRolloutTimeField.trim() !== "") {
+            rolloutTime = rawRolloutTimeField;
+        }
+
+        // Validate rolloutTime format (ISO 8601) or set to empty string if invalid
+        if (rolloutTime && isNaN(Date.parse(rolloutTime))) {
+            console.warn(`Invalid rolloutTime format: ${rolloutTime}, ignoring rolloutTime`);
+            rolloutTime = "";
+        }
 
         const parsedData: ParsedData = {
             issueKey,
@@ -110,8 +129,8 @@ export async function POST(request: Request) {
                 return Response.json({ error: 'No matching Bytebase database found' }, { status: 400 });
             }
 
-            // Create Bytebase issue with dynamic project
-            const result = await createBBIssueWorkflow(dynamicProjectPath, matchingDatabase, sqlStatement, summary, description, issueKey);
+            // Create Bytebase issue with dynamic project and rollout time
+            const result = await createBBIssueWorkflow(dynamicProjectPath, matchingDatabase, sqlStatement, summary, description, issueKey, rolloutTime);
             
             if (result.success && result.issueLink) {
                 bytebaseIssueLink = result.issueLink;

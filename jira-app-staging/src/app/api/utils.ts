@@ -72,7 +72,7 @@ async function createSheet(project: string, SQL: string) {
     return response;
 }
 
-async function createPlan(project: string, database: BytebaseDatabase, sheetName: string) {
+async function createPlan(project: string, database: BytebaseDatabase, sheetName: string, earliestAllowedTime?: string) {
     const token = await generateBBToken();
     const newPlan = {
         "steps": [
@@ -80,6 +80,7 @@ async function createPlan(project: string, database: BytebaseDatabase, sheetName
                 "specs": [
                     {
                         "id": v4(),
+                        "earliestAllowedTime": earliestAllowedTime || "",
                         "change_database_config": {
                             "target": database.name,
                             "type": `MIGRATE`,
@@ -138,15 +139,33 @@ async function createRollout(project: string, planName: string) {
     return response;
 }
 
-export async function createBBIssueWorkflow(project: string, database: BytebaseDatabase, SQL: string, summary: string, description: string, jiraIssueKey: string) {
+export async function createBBIssueWorkflow(project: string, database: BytebaseDatabase, SQL: string, summary: string, description: string, jiraIssueKey: string, earliestAllowedTime?: string) {
 
-    console.log("=============createIssueWorkflow", project, database, SQL, summary, description);
+    console.log("=============createIssueWorkflow", project, database, SQL, summary, description, earliestAllowedTime);
     try {
         const sheetData = await createSheet(project, SQL);
         console.log("--------- createdSheetData ----------", sheetData);
 
-        const planData = await createPlan(project, database, sheetData.name);
+        // Convert earliestAllowedTime date string to full ISO 8601 timestamp if provided
+        let rolloutTimestamp = "";
+        if (earliestAllowedTime) {
+            // Normalize timezone offset format by inserting colon if missing (e.g. -0500 to -05:00)
+            const normalizedTime = earliestAllowedTime.replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+            // Parse date string and convert to UTC ISO string to ensure valid protobuf timestamp format
+            const date = new Date(normalizedTime);
+            if (!isNaN(date.getTime())) {
+                rolloutTimestamp = date.toISOString();
+            } else {
+                console.warn(`Invalid earliestAllowedTime date: ${earliestAllowedTime}, ignoring rollout time`);
+            }
+        }
+
+        const planData = await createPlan(project, database, sheetData.name, rolloutTimestamp);
         console.log("--------- createdPlanData ----------", planData);
+
+        if (!planData || !planData.name) {
+            throw new Error("Plan creation failed or missing plan name");
+        }
 
         const issueData = await createIssue(project, database, planData.name, summary, description, jiraIssueKey);
         console.log("--------- createdIssue ----------", issueData);
